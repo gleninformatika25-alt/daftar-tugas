@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Daftar Tugas</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f5f7fb; --card:#ffffff; --muted:#6b7280; --accent:#4f46e5;
+  --glass: rgba(255,255,255,0.6);
+}
+*{box-sizing:border-box}
+body{
+  font-family:Inter,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial;
+  background:linear-gradient(180deg,#eef2ff 0%,var(--bg) 100%);
+  margin:0; padding:40px; color:#0f172a;
+}
+.container{max-width:980px;margin:0 auto}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.title{font-weight:600;font-size:20px}
+.controls{display:flex;gap:10px;align-items:center}
+.card{
+  background:var(--card); border-radius:12px; padding:18px; box-shadow:0 6px 18px rgba(15,23,42,0.06);
+}
+.form-row{display:flex;gap:10px;margin-bottom:10px}
+.input,textarea,select{
+  padding:10px;border-radius:8px;border:1px solid #e6e9ef;background:transparent;flex:1;
+}
+.btn{
+  background:var(--accent); color:white;padding:10px 14px;border-radius:8px;border:none;cursor:pointer;
+}
+.grid{display:grid;grid-template-columns:1fr 360px;gap:18px}
+.list{display:flex;flex-direction:column;gap:12px}
+.task{
+  display:flex;flex-direction:column;padding:12px;border-radius:10px;border:1px solid #eef2ff;background:linear-gradient(180deg,var(--glass),#fff);
+}
+.task-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.meta{font-size:13px;color:var(--muted)}
+.progress{height:10px;background:#eef2ff;border-radius:999px;overflow:hidden;margin-top:8px}
+.progress > i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),#7c3aed);width:0%}
+.small{font-size:13px;color:var(--muted)}
+.sidebar .card{position:sticky;top:20px}
+.actions{display:flex;gap:8px}
+.icon-btn{background:#fff;border:1px solid #e6e9ef;padding:6px;border-radius:8px;cursor:pointer}
+.empty{padding:30px;text-align:center;color:var(--muted)}
+.footer{margin-top:18px;text-align:center;color:var(--muted);font-size:13px}
+.toggle{display:flex;align-items:center;gap:8px}
+.switch{width:42px;height:26px;background:#e6e9ef;border-radius:999px;position:relative;cursor:pointer}
+.knob{position:absolute;top:3px;left:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:all .18s}
+.switch.on{background:linear-gradient(90deg,var(--accent),#7c3aed)}
+.switch.on .knob{left:19px}
+.small-input{width:80px;padding:8px;border-radius:8px;border:1px solid #e6e9ef;background:transparent}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="title">Daftar Tugas</div>
+    <div class="controls small">Elegant • Visual • Lokal</div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="card">
+        <form id="taskForm">
+          <div class="form-row">
+            <input id="title" class="input" placeholder="Judul tugas" required />
+            <input id="deadline" type="date" class="input" />
+          </div>
+          <div class="form-row">
+            <input id="progress" type="number" min="0" max="100" class="input" placeholder="Progress % (0-100)" />
+            <button class="btn" type="submit">Tambah Tugas</button>
+          </div>
+          <textarea id="desc" class="input" rows="2" placeholder="Deskripsi (opsional)"></textarea>
+        </form>
+      </div>
+
+      <div id="list" class="list" style="margin-top:14px"></div>
+
+      <div class="footer">
+        <div><strong>Versi</strong> 1.1 — Notifikasi deadline</div>
+      </div>
+    </div>
+
+    <aside class="sidebar">
+      <div class="card">
+        <h4 style="margin:0 0 8px 0">Ringkasan</h4>
+        <div id="summary" class="small">Memuat...</div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <h4 style="margin:0 0 8px 0">Pengaturan Notifikasi</h4>
+        <div class="small" style="display:flex;flex-direction:column;gap:8px">
+          <div class="toggle">
+            <div id="notifSwitch" class="switch" role="button" aria-pressed="false">
+              <div class="knob"></div>
+            </div>
+            <div id="notifLabel">Notifikasi mati</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <label class="small">Waktu (jam)</label>
+            <input id="thresholdInput" class="small-input" type="number" min="1" max="168" />
+            <button id="requestPerm" class="btn" style="padding:8px 10px">Minta Izin</button>
+          </div>
+          <div class="small">Notifikasi browser akan muncul untuk tugas yang mendekati deadline atau terlambat. Jika izin ditolak, aplikasi menampilkan banner in‑app.</div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+/* ---------- Data tugas dan util ---------- */
+const form=document.getElementById('taskForm');
+const listEl=document.getElementById('list');
+const summary=document.getElementById('summary');
+let tasks=JSON.parse(localStorage.getItem('tasks')||'[]');
+
+function save(){ localStorage.setItem('tasks',JSON.stringify(tasks)); render(); }
+function addTask(t){ tasks.push(t); save(); }
+function removeTask(i){ tasks.splice(i,1); save(); }
+
+/* ---------- Render daftar ---------- */
+function render(){
+  listEl.innerHTML='';
+  if(tasks.length===0){ listEl.innerHTML='<div class="card empty">Belum ada tugas</div>'; summary.textContent='0 tugas'; return; }
+  tasks.sort((a,b)=> (a.deadline||'9999') > (b.deadline||'9999') ? 1:-1);
+  tasks.forEach((t,i)=>{
+    const el=document.createElement('div'); el.className='task card';
+    el.innerHTML=`
+      <div class="task-head">
+        <div>
+          <div style="font-weight:600">${t.title}</div>
+          <div class="meta">${t.desc||''}</div>
+        </div>
+        <div class="actions">
+          <div class="meta">${t.deadline||'Tanpa deadline'}</div>
+          <button class="icon-btn" data-i="${i}">Hapus</button>
+        </div>
+      </div>
+      <div class="progress"><i style="width:${t.progress||0}%"></i></div>
+      <div class="small" style="margin-top:8px">Progress <strong>${t.progress||0}%</strong></div>
+    `;
+    listEl.appendChild(el);
+  });
+  summary.textContent = `${tasks.length} tugas • Rata-rata progress ${Math.round(tasks.reduce((s,t)=>s+(t.progress||0),0)/tasks.length)||0}%`;
+  document.querySelectorAll('.icon-btn').forEach(b=>b.onclick=()=>{ removeTask(b.dataset.i); });
+}
+
+/* ---------- Form tambah tugas ---------- */
+form.onsubmit=e=>{
+  e.preventDefault();
+  const t={ title:document.getElementById('title').value.trim(),
+            desc:document.getElementById('desc').value.trim(),
+            deadline:document.getElementById('deadline').value,
+            progress:Math.max(0,Math.min(100,Number(document.getElementById('progress').value||0))) };
+  if(!t.title) return;
+  addTask(t);
+  form.reset();
+};
+
+/* ---------- Pengaturan notifikasi ---------- */
+const NOTIFIED_KEY = 'notifiedTasks';
+const SETTINGS_KEY = 'notifSettings';
+const DEFAULT_SETTINGS = { enabled: true, thresholdHours: 24, lastCheck: 0 };
+
+let settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null') || DEFAULT_SETTINGS;
+
+/* elemen UI */
+const notifSwitch = document.getElementById('notifSwitch');
+const notifLabel = document.getElementById('notifLabel');
+const thresholdInput = document.getElementById('thresholdInput');
+const requestPermBtn = document.getElementById('requestPerm');
+
+function updateSwitchUI(){
+  if(settings.enabled){ notifSwitch.classList.add('on'); notifLabel.textContent='Notifikasi aktif'; notifSwitch.setAttribute('aria-pressed','true'); }
+  else { notifSwitch.classList.remove('on'); notifLabel.textContent='Notifikasi mati'; notifSwitch.setAttribute('aria-pressed','false'); }
+  thresholdInput.value = settings.thresholdHours;
+}
+notifSwitch.onclick = () => {
+  settings.enabled = !settings.enabled;
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  updateSwitchUI();
+};
+thresholdInput.onchange = () => {
+  const v = Math.max(1, Math.min(168, Number(thresholdInput.value||DEFAULT_SETTINGS.thresholdHours)));
+  settings.thresholdHours = v;
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  updateSwitchUI();
+};
+requestPermBtn.onclick = async () => {
+  await ensureNotificationPermission();
+  updateSwitchUI();
+};
+
+/* ---------- Notifikasi logic ---------- */
+async function ensureNotificationPermission(){
+  if (!('Notification' in window)) return false;
+  if (Notification.permission === 'granted') return true;
+  if (Notification.permission === 'denied') return false;
+  const p = await Notification.requestPermission();
+  return p === 'granted';
+}
+
+function showBrowserNotification(title, body){
+  try{
+    new Notification(title, { body, badge: '', icon: '' });
+  }catch(e){ console.warn('Notif gagal', e); }
+}
+
+function showInAppBanner(text){
+  const b = document.createElement('div');
+  b.style = 'position:fixed;right:20px;bottom:20px;background:#111;color:#fff;padding:12px 16px;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,0.2);z-index:9999';
+  b.textContent = text;
+  document.body.appendChild(b);
+  setTimeout(()=>b.remove(), 8000);
+}
+
+async function checkDeadlinesOnce(){
+  if (!settings.enabled) return;
+  const hasPerm = (Notification && Notification.permission === 'granted');
+  const notified = JSON.parse(localStorage.getItem(NOTIFIED_KEY) || '[]');
+  const now = Date.now();
+  const threshold = settings.thresholdHours || DEFAULT_SETTINGS.thresholdHours;
+
+  tasks.forEach((t) => {
+    if (!t.deadline) return;
+    const due = new Date(t.deadline).getTime();
+    const hoursLeft = (due - now) / (1000*60*60);
+    const id = `${t.title}-${t.deadline}`;
+
+    if ((hoursLeft <= threshold && hoursLeft >= 0) || (hoursLeft < 0)){
+      if (!notified.includes(id)){
+        const when = hoursLeft < 0 ? 'terlambat' : `akan jatuh tempo dalam ${Math.ceil(hoursLeft)} jam`;
+        const body = `${t.title} ${when}. Progress: ${t.progress||0}%`;
+        if (hasPerm) showBrowserNotification('Peringatan Deadline', body);
+        else showInAppBanner(`⚠️ ${body}`);
+        notified.push(id);
+      }
+    }
+  });
+
+  // simpan daftar yang sudah diberi notifikasi
+  localStorage.setItem(NOTIFIED_KEY, JSON.stringify(notified));
+  settings.lastCheck = Date.now();
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+}
+
+/* interval pemeriksaan */
+const CHECK_INTERVAL_MS = 60_000; // 1 menit
+let checkIntervalHandle = null;
+function startDeadlineChecker(){
+  if (checkIntervalHandle) clearInterval(checkIntervalHandle);
+  checkIntervalHandle = setInterval(checkDeadlinesOnce, CHECK_INTERVAL_MS);
+  checkDeadlinesOnce();
+}
+
+/* ---------- Service Worker registration untuk push dasar ---------- */
+async function registerServiceWorker(){
+  if ('serviceWorker' in navigator){
+    try{
+      await navigator.serviceWorker.register('/sw.js');
+      console.log('Service worker terdaftar');
+    }catch(e){
+      console.warn('Gagal mendaftar service worker', e);
+    }
+  }
+}
+
+/* ---------- Inisialisasi ---------- */
+render();
+updateSwitchUI();
+startDeadlineChecker();
+registerServiceWorker();
+</script>
+</body>
+</html>
